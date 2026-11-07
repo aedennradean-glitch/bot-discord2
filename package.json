@@ -12,10 +12,13 @@
   "dependencies": {
     "@discord-player/extractor": "^7.1.0",
     "@snazzah/davey": "^0.2.0",
+    "bgutils-js": "^4.0.3",
     "discord-player": "^7.1.0",
-    "discord-player-youtubei": "^1.4.0",
+    "discord-player-youtubei": "^3.1.0",
     "discord.js": "^14.16.0",
     "ffmpeg-static": "^5.2.0",
-    "mediaplex": "^1.0.0"
+    "googlevideo": "^4.1.1",
+    "mediaplex": "^1.0.0",
+    "simple-ytdl-core": "^1.2.2"
   }
 }
