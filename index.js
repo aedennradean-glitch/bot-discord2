@@ -24,7 +24,12 @@ const client = new Client({
   allowedMentions: { parse: [], repliedUser: false },
 });
 
-const player = new Player(client);
+// Pakai binary ffmpeg dari paket ffmpeg-static supaya tidak bergantung pada ffmpeg sistem
+// (image Railway biasanya tidak punya ffmpeg -> lagu "jalan" tapi tanpa suara).
+let ffmpegPath;
+try { ffmpegPath = require("ffmpeg-static") || undefined; } catch {}
+console.log(`[BOOT] ffmpeg: ${ffmpegPath || "tidak ditemukan (pakai ffmpeg sistem kalau ada)"}`);
+const player = new Player(client, ffmpegPath ? { ffmpegPath } : {});
 
 // Bot tidak pernah keluar VC sendiri (antrian habis / VC kosong / stop) supaya bisa jadi AFK 24/7.
 function nodeOptions(channel) {
@@ -217,8 +222,25 @@ client.on("interactionCreate", async (i) => {
 
 // ---------------- Player events ----------------
 player.events.on("playerStart", (queue, track) => {
+  console.log(`[PLAYER] playerStart: ${track.title} | sumber: ${track.source} | ${track.url}`);
   queue.metadata?.channel?.send(`▶️ sekarang: ${fmtTrack(track)}`).catch(() => {});
 });
+player.events.on("audioTrackAdd", (queue, track) => {
+  console.log(`[PLAYER] ditambahkan ke antrian: ${track.title} (${track.duration})`);
+});
+player.events.on("playerFinish", (queue, track) => {
+  console.log(`[PLAYER] selesai: ${track.title}`);
+});
+player.events.on("playerSkip", (queue, track, reason) => {
+  console.warn(`[PLAYER] dilewati otomatis: ${track.title} | alasan: ${reason}`);
+});
+player.events.on("connection", () => console.log("[PLAYER] voice connection terbentuk."));
+player.events.on("disconnect", () => console.warn("[PLAYER] voice connection terputus."));
+// Log debug detail (stream/ffmpeg/voice). Nyalakan dengan variable DEBUG_PLAYER=1 di Railway.
+if (process.env.DEBUG_PLAYER === "1") {
+  player.events.on("debug", (queue, message) => console.log("[DEBUG]", message));
+  player.on("debug", (message) => console.log("[DEBUG-PLAYER]", message));
+}
 player.events.on("emptyQueue", (queue) => {
   queue.metadata?.channel?.send("antrian habis.").catch(() => {});
 });
@@ -259,6 +281,7 @@ client.once(Events.ClientReady, async () => {
   try {
     await player.extractors.loadMulti(DefaultExtractors);
     await player.extractors.register(YoutubeExtractor, {});
+    try { console.log("[DEPS]\n" + player.scanDeps()); } catch (e) { console.warn("[DEPS] scanDeps gagal:", e?.message || e); }
     console.log("[PLAYER] Extractor aktif:", [...player.extractors.store.keys()].join(", "));
     await registerCommands();
     await ensureAfk();
