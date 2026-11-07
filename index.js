@@ -83,6 +83,23 @@ async function requireQueue(i) {
   return queue;
 }
 
+// Rapikan link YouTube: music.youtube.com -> www.youtube.com, dan buang list=RD... (mix/radio
+// otomatis YouTube) yang sering membuat pencarian gagal. Playlist biasa (list=PL...) dibiarkan.
+function normalizeQuery(query) {
+  try {
+    const u = new URL(query);
+    if (/(^|\.)youtube\.com$/i.test(u.hostname)) {
+      u.hostname = "www.youtube.com";
+      const list = u.searchParams.get("list") || "";
+      if (u.searchParams.get("v") && /^(RD|UL)/.test(list)) {
+        for (const key of ["list", "start_radio", "index"]) u.searchParams.delete(key);
+      }
+      return u.toString();
+    }
+  } catch {}
+  return query;
+}
+
 const handlers = {
   async play(i) {
     const vc = i.member.voice?.channel;
@@ -102,14 +119,14 @@ const handlers = {
     try {
       // Queue AFK yang sudah standby: arahkan notifikasi ke channel tempat /play dipakai.
       if (existing) existing.setMetadata({ channel: i.channel });
-      const { track, searchResult } = await player.play(vc, i.options.getString("query", true), {
+      const { track, searchResult } = await player.play(vc, normalizeQuery(i.options.getString("query", true)), {
         requestedBy: i.user,
         nodeOptions: nodeOptions(i.channel),
       });
       const extra = searchResult?.playlist ? ` (playlist: ${searchResult.playlist.tracks.length} lagu)` : "";
       await i.editReply(`🎶 ditambahkan: ${fmtTrack(track)}${extra}`);
     } catch (error) {
-      console.error("[PLAY]", error);
+      console.error("[PLAY]", error?.code || "", error?.message || error, error?.cause ? `| penyebab: ${error.cause?.message || error.cause}` : "");
       await i.editReply("❌ nggak nemu lagunya atau gagal diputar. coba judul lain / link lain.");
     }
   },
