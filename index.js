@@ -11,6 +11,7 @@ const TOKEN = (process.env.TOKEN || "").trim();
 const CLIENT_ID = (process.env.CLIENT_ID || "").trim();
 const GUILD_ID = (process.env.GUILD_ID || "").trim();
 const AFK_CHANNEL_ID = (process.env.AFK_CHANNEL_ID || "").trim(); // voice channel untuk mode AFK 24/7 (butuh GUILD_ID)
+const YT_COOKIE = (process.env.YT_COOKIE || "").trim(); // opsional: cookie YouTube (pakai akun cadangan!)
 const DEFAULT_VOLUME = Math.min(100, Math.max(1, Number.parseInt(process.env.DEFAULT_VOLUME || "50", 10) || 50));
 
 if (!TOKEN || !CLIENT_ID) {
@@ -105,6 +106,26 @@ function normalizeQuery(query) {
   return query;
 }
 
+// Diagnosis: kenapa YouTube memberi judul kosong? Cek status tiap client InnerTube dan catat di log.
+async function diagnoseYoutube(url) {
+  try {
+    const ext = player.extractors.get(YoutubeExtractor.identifier);
+    const id = new URL(url).searchParams.get("v");
+    if (!ext?.innertube || !id) return console.warn("[YT-DIAG] innertube/id tidak tersedia.");
+    for (const client of ["WEB", "MWEB", "IOS", "ANDROID", "TV"]) {
+      try {
+        const info = await ext.innertube.getBasicInfo(id, { client });
+        const ps = info.playability_status;
+        console.warn(`[YT-DIAG] ${client}: status=${ps?.status || "?"} judul=${info.basic_info?.title ? "ada" : "KOSONG"} alasan=${ps?.reason || "-"}`);
+      } catch (e) {
+        console.warn(`[YT-DIAG] ${client}: error ${e?.message || e}`);
+      }
+    }
+  } catch (e) {
+    console.warn("[YT-DIAG] gagal:", e?.message || e);
+  }
+}
+
 const handlers = {
   async play(i) {
     const vc = i.member.voice?.channel;
@@ -133,7 +154,14 @@ const handlers = {
         ...(isUrl ? {} : { searchEngine: `ext:${YoutubeExtractor.identifier}` }),
         nodeOptions: nodeOptions(i.channel),
       });
-      console.log(`[PLAY] "${query}" -> ${track.title} | sumber: ${track.source}`);
+      console.log(`[PLAY] "${query}" -> ${track.title || "(judul kosong)"} | sumber: ${track.source}`);
+      if (!track.title) {
+        // YouTube tidak memberi info video (biasanya IP server diblokir / diminta login).
+        void diagnoseYoutube(track.url);
+        const q = useQueue(i.guild.id);
+        if (q) { q.tracks.clear(); q.node.stop(); }
+        return i.editReply("❌ YouTube menolak permintaan dari server bot (info lagu kosong). cek log Railway baris `[YT-DIAG]`.");
+      }
       const extra = searchResult?.playlist ? ` (playlist: ${searchResult.playlist.tracks.length} lagu)` : "";
       await i.editReply(`🎶 ditambahkan: ${fmtTrack(track)}${extra}`);
     } catch (error) {
@@ -286,8 +314,9 @@ async function ensureAfk() {
 client.once(Events.ClientReady, async () => {
   try {
     await player.extractors.loadMulti(DefaultExtractors);
-    await player.extractors.register(YoutubeExtractor, {});
+    await player.extractors.register(YoutubeExtractor, YT_COOKIE ? { cookie: YT_COOKIE } : {});
     try { console.log("[DEPS]\n" + player.scanDeps()); } catch (e) { console.warn("[DEPS] scanDeps gagal:", e?.message || e); }
+    console.log(`[PLAYER] Cookie YouTube: ${YT_COOKIE ? "dipakai" : "tidak ada"}`);
     console.log("[PLAYER] Extractor aktif:", [...player.extractors.store.keys()].join(", "));
     await registerCommands();
     await ensureAfk();
