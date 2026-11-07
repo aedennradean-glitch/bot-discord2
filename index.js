@@ -1,7 +1,7 @@
 "use strict";
 
 const {
-  Client, GatewayIntentBits, SlashCommandBuilder, EmbedBuilder, REST, Routes, MessageFlags,
+  Client, Events, GatewayIntentBits, SlashCommandBuilder, EmbedBuilder, REST, Routes, MessageFlags,
 } = require("discord.js");
 const { Player, QueueRepeatMode, useQueue } = require("discord-player");
 const { DefaultExtractors } = require("@discord-player/extractor");
@@ -238,7 +238,7 @@ async function ensureAfk() {
 }
 
 // ---------------- Boot ----------------
-client.once("ready", async () => {
+client.once(Events.ClientReady, async () => {
   try {
     await player.extractors.loadMulti(DefaultExtractors);
     await player.extractors.register(YoutubeiExtractor, {});
