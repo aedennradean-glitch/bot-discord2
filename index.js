@@ -5,7 +5,7 @@ const {
 } = require("discord.js");
 const { Player, QueueRepeatMode, useQueue } = require("discord-player");
 const { DefaultExtractors } = require("@discord-player/extractor");
-const { YoutubeiExtractor } = require("discord-player-youtubei");
+const { YoutubeExtractor } = require("discord-player-youtubei");
 
 const TOKEN = (process.env.TOKEN || "").trim();
 const CLIENT_ID = (process.env.CLIENT_ID || "").trim();
@@ -241,8 +241,8 @@ async function ensureAfk() {
 client.once(Events.ClientReady, async () => {
   try {
     await player.extractors.loadMulti(DefaultExtractors);
-    await player.extractors.register(YoutubeiExtractor, {});
-    console.log("[PLAYER] Extractor dimuat.");
+    await player.extractors.register(YoutubeExtractor, {});
+    console.log("[PLAYER] Extractor aktif:", [...player.extractors.store.keys()].join(", "));
     await registerCommands();
     await ensureAfk();
     setInterval(ensureAfk, 60 * 1000); // watchdog: masuk lagi kalau terputus / ditendang
