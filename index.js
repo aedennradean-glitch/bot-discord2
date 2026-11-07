@@ -124,10 +124,16 @@ const handlers = {
     try {
       // Queue AFK yang sudah standby: arahkan notifikasi ke channel tempat /play dipakai.
       if (existing) existing.setMetadata({ channel: i.channel });
-      const { track, searchResult } = await player.play(vc, normalizeQuery(i.options.getString("query", true)), {
+      const query = normalizeQuery(i.options.getString("query", true));
+      const isUrl = /^https?:\/\//i.test(query);
+      const { track, searchResult } = await player.play(vc, query, {
         requestedBy: i.user,
+        // Pencarian teks WAJIB lewat YouTube; kalau tidak, extractor lain (SoundCloud, dll)
+        // bisa menang duluan dan streamnya sering langsung selesai tanpa suara.
+        ...(isUrl ? {} : { searchEngine: `ext:${YoutubeExtractor.identifier}` }),
         nodeOptions: nodeOptions(i.channel),
       });
+      console.log(`[PLAY] "${query}" -> ${track.title} | sumber: ${track.source}`);
       const extra = searchResult?.playlist ? ` (playlist: ${searchResult.playlist.tracks.length} lagu)` : "";
       await i.editReply(`🎶 ditambahkan: ${fmtTrack(track)}${extra}`);
     } catch (error) {
